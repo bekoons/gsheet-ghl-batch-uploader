@@ -12,7 +12,8 @@
     "upload": "npm run build --silent && node dist/cli.js",
     "check": "tsc --noEmit",
     "export:option-map": "ts-node scripts/ghl-export-option-map.ts",
-    "test": "npm run build --silent && node --test dist/**/*.test.js"
+    "test": "npm run build --silent && node --test dist/**/*.test.js",
+    "typecheck:scripts": "tsc -p tsconfig.scripts.json --noEmit"
   },
   "dependencies": {
     "googleapis": "^140.0.1"

@@ -17,7 +17,12 @@ async function getAuthClient() {
     return oauth2Client;
   }
 
-  const keyFile = process.env.GOOGLE_APPLICATION_CREDENTIALS || './secrets/service-account.json';
+  const keyFile = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  if (!keyFile) {
+    throw new Error(
+      'Missing Google service account credentials path. Set GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_APPLICATION_CREDENTIALS.'
+    );
+  }
   return new google.auth.GoogleAuth({
     keyFile,
     scopes: ['https://www.googleapis.com/auth/spreadsheets']

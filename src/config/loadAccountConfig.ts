@@ -37,5 +37,15 @@ export async function loadAccountConfig(accountId: string): Promise<AccountConfi
     }
   }
 
+  if (parsed.ghl) {
+    assertRecord(parsed.ghl, 'ghl');
+    if (parsed.ghl.timeoutMs !== undefined && (!Number.isFinite(parsed.ghl.timeoutMs) || parsed.ghl.timeoutMs <= 0)) {
+      throw new Error('Config field must be a positive number: ghl.timeoutMs');
+    }
+    if (parsed.ghl.maxRetries !== undefined && (!Number.isInteger(parsed.ghl.maxRetries) || parsed.ghl.maxRetries < 0)) {
+      throw new Error('Config field must be a non-negative integer: ghl.maxRetries');
+    }
+  }
+
   return parsed;
 }

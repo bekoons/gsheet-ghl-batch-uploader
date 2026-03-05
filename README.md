@@ -8,7 +8,8 @@ Node.js + TypeScript CLI to read contacts from **Google Sheets** and batch upser
 - First row is treated as headers, following rows as data.
 - Config-driven mapping (`columnMap`, `contactFieldMap`, `customFieldMap`, `optionValueMap`).
 - Upserts contacts using `POST https://services.leadconnectorhq.com/contacts/upsert`.
-- Retries on 429 and 5xx with exponential backoff (max 3 attempts).
+- Retries on 429, 5xx, and timeout/network errors with exponential backoff (`ghl.maxRetries` + initial attempt).
+- Per-request timeout for upsert (`ghl.timeoutMs`, default `30000`).
 - Supports dry-run mode and row slicing (`--offset`, `--limit`).
 - Per-run trace id logging.
 - Writes JSON + CSV reports to `./reports`.
@@ -38,13 +39,15 @@ This tool supports two auth modes.
 2. Create a **Service Account**.
 3. Create/download a JSON key.
 4. Share your Google Sheet with the service account email (Viewer access is enough).
-5. Put key file at `./secrets/service-account.json` **or** set:
+5. Set one of these env vars to your key file path (precedence shown):
 
 ```bash
+export GOOGLE_SERVICE_ACCOUNT_JSON=/absolute/path/to/service-account.json
+# fallback if GOOGLE_SERVICE_ACCOUNT_JSON is not set:
 export GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/service-account.json
 ```
 
-Default mode is service account.
+Default mode is service account. If neither env var is set in service-account mode, the CLI exits with a clear error.
 
 ### B) OAuth user credentials (optional)
 
@@ -62,7 +65,7 @@ export GOOGLE_AUTH_MODE=oauth
 
 ## Usage
 
-Dry-run validation (no GHL API calls):
+Dry-run validation (no GHL API calls, no sheet status writeback):
 
 ```bash
 npm run upload -- --account default --dry-run
@@ -73,6 +76,18 @@ Real upload:
 ```bash
 npm run upload -- --account default --concurrency 3
 ```
+
+
+
+### Dry-run row output format
+
+For each processed row in `--dry-run`, the CLI prints one pretty JSON object to stdout with:
+
+- `sheetRowNumber`
+- `linkedin_profile_url`
+- `upsertBody` (exact body that real mode would send)
+- `usedSyntheticEmail`
+- `optionTranslations` (array of translation audit entries)
 
 ### CLI flags
 
@@ -100,7 +115,7 @@ If both email and phone are missing:
 ## Validation and safety
 
 - `linkedin_profile_url` must start with `https://www.linkedin.com/in/`
-- Missing/invalid LinkedIn URL rows are skipped with reason.
+- Missing/invalid LinkedIn URL rows are classified as `SKIPPED_MISSING_LINKEDIN`.
 - Access tokens are never printed in logs.
 - Every outbound run is tagged with a trace id.
 
@@ -172,5 +187,21 @@ Each row includes:
 - `prospect_key`
 - `usedSyntheticEmail`
 - `status` (`success|failed|skipped`)
-- `error` (if any)
+- `uploadStatus` (`UPLOADED`, `SKIPPED_MISSING_LINKEDIN`, `FAILED_VALIDATION`, `FAILED_GHL_4XX`, `FAILED_GHL_5XX`, `FAILED_TIMEOUT`)
+- `httpStatus` (when available)
+- `error` / `errorMessage` (when available)
 - `ghlContactId` (if returned)
+
+
+## Upload status values
+
+Sheet status writeback values are bounded to:
+
+- `UPLOADED`
+- `SKIPPED_MISSING_LINKEDIN`
+- `FAILED_VALIDATION`
+- `FAILED_GHL_4XX`
+- `FAILED_GHL_5XX`
+- `FAILED_TIMEOUT`
+
+`429` is retried; if retries are exhausted it is written as `FAILED_GHL_4XX`.

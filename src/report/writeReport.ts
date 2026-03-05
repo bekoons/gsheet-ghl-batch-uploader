@@ -26,7 +26,10 @@ export async function writeReport(summary: RunSummary): Promise<{ jsonPath: stri
     'prospect_key',
     'usedSyntheticEmail',
     'status',
+    'uploadStatus',
+    'httpStatus',
     'error',
+    'errorMessage',
     'ghlContactId'
   ];
 
@@ -39,7 +42,10 @@ export async function writeReport(summary: RunSummary): Promise<{ jsonPath: stri
         row.prospect_key ?? '',
         row.usedSyntheticEmail,
         row.status,
+        row.uploadStatus ?? '',
+        row.httpStatus ?? '',
         row.error ?? '',
+        row.errorMessage ?? '',
         row.ghlContactId ?? ''
       ]
         .map(csvEscape)

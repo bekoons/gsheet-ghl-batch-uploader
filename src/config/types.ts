@@ -41,7 +41,19 @@ export interface AccountConfig {
   contactFieldMap: Partial<Record<ContactFieldName, string>>;
   customFieldMap: Record<string, string>;
   optionValueMap?: Record<string, Record<string, string>>;
+  ghl?: {
+    timeoutMs?: number;
+    maxRetries?: number;
+  };
 }
+
+export type UploadStatus =
+  | 'UPLOADED'
+  | 'SKIPPED_MISSING_LINKEDIN'
+  | 'FAILED_VALIDATION'
+  | 'FAILED_GHL_4XX'
+  | 'FAILED_GHL_5XX'
+  | 'FAILED_TIMEOUT';
 
 export type CanonicalRow = Record<string, unknown>;
 
@@ -51,7 +63,10 @@ export interface RowResult {
   prospect_key?: string;
   usedSyntheticEmail: boolean;
   status: 'success' | 'failed' | 'skipped';
+  uploadStatus?: UploadStatus;
   error?: string;
+  httpStatus?: number;
+  errorMessage?: string;
   ghlContactId?: string;
 }
 

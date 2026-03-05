@@ -57,5 +57,9 @@
       "vice president": "Vice President",
       "director": "Director"
     }
+  },
+  "ghl": {
+    "timeoutMs": 30000,
+    "maxRetries": 2
   }
 }
