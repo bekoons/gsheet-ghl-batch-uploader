@@ -10,13 +10,16 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "upload": "npm run build --silent && node dist/cli.js",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "export:option-map": "ts-node scripts/ghl-export-option-map.ts",
+    "test": "npm run build --silent && node --test dist/**/*.test.js"
   },
   "dependencies": {
     "googleapis": "^140.0.1"
   },
   "devDependencies": {
     "@types/node": "^20.14.12",
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "ts-node": "^10.9.2"
   }
 }
