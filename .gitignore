@@ -1,0 +1,6 @@
+node_modules/
+dist/
+reports/
+secrets/
+config/accounts/default.json
+*.log

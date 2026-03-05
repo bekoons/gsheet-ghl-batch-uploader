@@ -1,0 +1,56 @@
+{
+  "accountId": "default",
+  "ghlAccessToken": "REPLACE_WITH_GHL_ACCESS_TOKEN",
+  "ghlLocationId": "REPLACE_WITH_GHL_LOCATION_ID",
+  "sheet": {
+    "spreadsheetId": "REPLACE_WITH_SPREADSHEET_ID",
+    "tabName": "Sheet1",
+    "range": "A1:ZZ"
+  },
+  "columnMap": {
+    "linkedin_profile_url": "LinkedIn URL",
+    "first_name": "First Name",
+    "last_name": "Last Name",
+    "full_name": "Full Name",
+    "company_name": "Company",
+    "website": "Website",
+    "email": "Email",
+    "phone": "Phone",
+    "source": "Source",
+    "tags": "Tags",
+    "icp_cluster": "ICP Cluster",
+    "seniority_level": "Seniority Level",
+    "recent_signal_summary": "Recent Signal Summary",
+    "hook_pillar": "Hook Pillar",
+    "outreach_engine": "Outreach Engine"
+  },
+  "contactFieldMap": {
+    "firstName": "first_name",
+    "lastName": "last_name",
+    "companyName": "company_name",
+    "website": "website",
+    "email": "email",
+    "phone": "phone",
+    "source": "source",
+    "tags": "tags",
+    "name": "full_name"
+  },
+  "customFieldMap": {
+    "identity.linkedin_profile_url": "REPLACE_CUSTOM_FIELD_ID",
+    "identity.outreach_engine": "REPLACE_CUSTOM_FIELD_ID",
+    "classification.icp_cluster": "REPLACE_CUSTOM_FIELD_ID",
+    "classification.seniority_level": "REPLACE_CUSTOM_FIELD_ID",
+    "signal.recent_signal_summary": "REPLACE_CUSTOM_FIELD_ID",
+    "hook.hook_pillar": "REPLACE_CUSTOM_FIELD_ID",
+    "identity.prospect_key": "REPLACE_CUSTOM_FIELD_ID"
+  },
+  "optionValueMap": {
+    "classification.icp_cluster": {
+      "generic": "generic"
+    },
+    "classification.seniority_level": {
+      "Director": "Director",
+      "Vice President": "Vice President"
+    }
+  }
+}
