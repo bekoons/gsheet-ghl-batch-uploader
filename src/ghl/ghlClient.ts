@@ -9,6 +9,11 @@ export interface GhlClientOptions {
   traceId: string;
 }
 
+export interface GhlUpsertOptions extends GhlClientOptions {
+  timeoutMs?: number;
+  maxRetries?: number;
+}
+
 export interface GhlCustomFieldOption {
   label: string;
   value?: string;
@@ -19,6 +24,18 @@ export interface GhlCustomField {
   name: string;
   dataType: string;
   options?: GhlCustomFieldOption[];
+}
+
+export class GhlUpsertError extends Error {
+  status?: number;
+  kind: '4XX' | '5XX' | 'TIMEOUT' | 'NETWORK';
+
+  constructor(message: string, kind: '4XX' | '5XX' | 'TIMEOUT' | 'NETWORK', status?: number) {
+    super(message);
+    this.name = 'GhlUpsertError';
+    this.kind = kind;
+    this.status = status;
+  }
 }
 
 function buildHeaders(options: GhlClientOptions): Record<string, string> {
@@ -73,38 +90,77 @@ export async function listCustomFields(
   });
 }
 
-export async function upsertContact(body: GhlUpsertBody, options: GhlClientOptions): Promise<{ id?: string }> {
-  const maxAttempts = 3;
+export async function upsertContact(body: GhlUpsertBody, options: GhlUpsertOptions): Promise<{ id?: string }> {
+  const maxAttempts = Math.max(1, (options.maxRetries ?? 2) + 1);
+  const timeoutMs = options.timeoutMs ?? 30000;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const response = await fetch(GHL_UPSERT_URL, {
-      method: 'POST',
-      headers: buildHeaders(options),
-      body: JSON.stringify(body)
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort('timeout'), timeoutMs);
 
-    const text = await response.text();
-    console.log(`[trace:${options.traceId}] GHL upsert status=${response.status} attempt=${attempt}`);
+    try {
+      const response = await fetch(GHL_UPSERT_URL, {
+        method: 'POST',
+        headers: buildHeaders(options),
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
 
-    if (response.ok) {
-      let parsed: any = {};
-      try {
-        parsed = text ? JSON.parse(text) : {};
-      } catch {
-        parsed = {};
+      const text = await response.text();
+      console.log(`[trace:${options.traceId}] GHL upsert status=${response.status} attempt=${attempt}`);
+
+      if (response.ok) {
+        let parsed: any = {};
+        try {
+          parsed = text ? JSON.parse(text) : {};
+        } catch {
+          parsed = {};
+        }
+        return { id: parsed?.contact?.id || parsed?.id };
       }
-      return { id: parsed?.contact?.id || parsed?.id };
-    }
 
-    const retriable = response.status === 429 || response.status >= 500;
-    if (retriable && attempt < maxAttempts) {
-      const delayMs = 500 * 2 ** (attempt - 1);
-      await wait(delayMs);
-      continue;
-    }
+      const kind = response.status >= 500 ? '5XX' : '4XX';
+      const error = new GhlUpsertError(`GHL upsert failed (${response.status}): ${text.slice(0, 500)}`, kind, response.status);
+      const retriable = response.status === 429 || response.status >= 500;
+      if (retriable && attempt < maxAttempts) {
+        const delayMs = 500 * 2 ** (attempt - 1);
+        await wait(delayMs);
+        continue;
+      }
 
-    throw new Error(`GHL upsert failed (${response.status}): ${text.slice(0, 500)}`);
+      throw error;
+    } catch (error) {
+      clearTimeout(timeout);
+
+      const isTimeout =
+        error instanceof DOMException
+          ? error.name === 'AbortError'
+          : error instanceof Error && error.name === 'AbortError';
+
+      if (isTimeout) {
+        if (attempt < maxAttempts) {
+          const delayMs = 500 * 2 ** (attempt - 1);
+          await wait(delayMs);
+          continue;
+        }
+        throw new GhlUpsertError(`GHL upsert timeout after ${timeoutMs}ms`, 'TIMEOUT');
+      }
+
+      if (error instanceof GhlUpsertError) {
+        throw error;
+      }
+
+      if (attempt < maxAttempts) {
+        const delayMs = 500 * 2 ** (attempt - 1);
+        await wait(delayMs);
+        continue;
+      }
+
+      const message = error instanceof Error ? error.message : String(error);
+      throw new GhlUpsertError(`GHL network failure: ${message}`, 'NETWORK');
+    }
   }
 
-  throw new Error('Unexpected retry exhaustion');
+  throw new GhlUpsertError('Unexpected retry exhaustion', 'NETWORK');
 }

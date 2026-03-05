@@ -1,13 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { loadAccountConfig } from './config/loadAccountConfig';
 import { RowResult, RunSummary } from './config/types';
-import { upsertContact } from './ghl/ghlClient';
+import { GhlUpsertError, upsertContact } from './ghl/ghlClient';
 import { writeReport } from './report/writeReport';
 import { parseRows } from './sheets/parseRows';
 import { readSheetValues, updateSheetValue } from './sheets/sheetsClient';
 import { buildGhlUpsertBody } from './transform/buildGhlUpsertBody';
 import { getByPath } from './transform/objectPath';
 import { buildProspectKey, buildSyntheticEmail, isValidLinkedInProfileUrl } from './transform/prospectKey';
+import { classifyGhlFailure, classifyValidationResult } from './transform/status';
+import { buildDryRunRowOutput } from './transform/dryRun';
 
 interface CliArgs {
   account: string;
@@ -88,20 +90,25 @@ async function main() {
         linkedin_profile_url: getByPath(canonical, 'identity.linkedin_profile_url'),
         usedSyntheticEmail: false,
         status: 'skipped',
-        error: `Status is ${uploadStatus}`
+        error: `Status is ${uploadStatus}`,
+        errorMessage: `Status is ${uploadStatus}`
       };
     }
 
     const linkedin = getByPath(canonical, 'identity.linkedin_profile_url');
+    const validationStatus = classifyValidationResult({
+      linkedinProfileUrl: linkedin,
+      isLinkedinValid: Boolean(linkedin && isValidLinkedInProfileUrl(linkedin))
+    });
 
-    if (!linkedin) {
+    if (validationStatus) {
       if (!args.dryRun) {
         await updateSheetValue({
           spreadsheetId: config.sheet.spreadsheetId,
           tabName: config.sheet.tabName,
           rowIndex,
           columnIndex: statusColumnIndex,
-          value: 'SKIPPED_MISSING_LINKEDIN'
+          value: validationStatus
         });
       }
       return {
@@ -109,26 +116,9 @@ async function main() {
         linkedin_profile_url: linkedin,
         usedSyntheticEmail: false,
         status: 'skipped',
-        error: 'Missing linkedin_profile_url'
-      };
-    }
-
-    if (!isValidLinkedInProfileUrl(linkedin)) {
-      if (!args.dryRun) {
-        await updateSheetValue({
-          spreadsheetId: config.sheet.spreadsheetId,
-          tabName: config.sheet.tabName,
-          rowIndex,
-          columnIndex: statusColumnIndex,
-          value: 'SKIPPED_MISSING_LINKEDIN'
-        });
-      }
-      return {
-        rowIndex,
-        linkedin_profile_url: linkedin,
-        usedSyntheticEmail: false,
-        status: 'skipped',
-        error: 'Invalid linkedin_profile_url format'
+        uploadStatus: validationStatus,
+        error: 'Missing or invalid linkedin_profile_url',
+        errorMessage: 'Missing or invalid linkedin_profile_url'
       };
     }
 
@@ -147,17 +137,15 @@ async function main() {
 
     console.log(`[trace:${traceId}] Prepared row=${rowIndex} dryRun=${args.dryRun}`);
 
-    if (args.dryRun && translationLog.length > 0) {
-      for (const item of translationLog) {
-        if (item.translated) {
-          console.log(`[trace:${traceId}] Row ${rowIndex} translated ${item.engineKey}: "${item.rawValue}" => "${item.mappedValue}"`);
-        } else if (item.missingMapping) {
-          console.log(`[trace:${traceId}] Row ${rowIndex} missing option map for ${item.engineKey}; using raw value "${item.rawValue}"`);
-        }
-      }
-    }
-
     if (args.dryRun) {
+      const dryRunOutput = buildDryRunRowOutput({
+        sheetRowNumber: rowIndex,
+        linkedin_profile_url: linkedin,
+        upsertBody: body,
+        usedSyntheticEmail: needsSyntheticEmail,
+        optionTranslations: translationLog
+      });
+      console.log(JSON.stringify(dryRunOutput, null, 2));
       return {
         rowIndex,
         linkedin_profile_url: linkedin,
@@ -170,7 +158,9 @@ async function main() {
     try {
       const response = await upsertContact(body, {
         accessToken: config.ghlAccessToken,
-        traceId
+        traceId,
+        timeoutMs: config.ghl?.timeoutMs,
+        maxRetries: config.ghl?.maxRetries
       });
 
       await updateSheetValue({
@@ -187,20 +177,30 @@ async function main() {
         prospect_key: prospectKey,
         usedSyntheticEmail: needsSyntheticEmail,
         status: 'success',
+        uploadStatus: 'UPLOADED',
         ghlContactId: response.id
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(`[trace:${traceId}] Row ${rowIndex} failed: ${message}`);
-      if (!args.dryRun) {
-        await updateSheetValue({
-          spreadsheetId: config.sheet.spreadsheetId,
-          tabName: config.sheet.tabName,
-          rowIndex,
-          columnIndex: statusColumnIndex,
-          value: `FAILED_${toFailureCode(message)}`
-        });
-      }
+      const typedError =
+        error instanceof GhlUpsertError
+          ? error
+          : new GhlUpsertError(error instanceof Error ? error.message : String(error), 'NETWORK');
+      const boundedStatus = classifyGhlFailure({
+        ok: false,
+        status: typedError.status,
+        kind: typedError.kind,
+        message: typedError.message
+      });
+
+      console.error(`[trace:${traceId}] Row ${rowIndex} failed: ${typedError.message}`);
+      await updateSheetValue({
+        spreadsheetId: config.sheet.spreadsheetId,
+        tabName: config.sheet.tabName,
+        rowIndex,
+        columnIndex: statusColumnIndex,
+        value: boundedStatus
+      });
+
       if (args.stopOnError) throw error;
       return {
         rowIndex,
@@ -208,7 +208,10 @@ async function main() {
         prospect_key: prospectKey,
         usedSyntheticEmail: needsSyntheticEmail,
         status: 'failed',
-        error: message
+        uploadStatus: boundedStatus,
+        error: typedError.message,
+        httpStatus: typedError.status,
+        errorMessage: typedError.message
       };
     }
   });
@@ -237,18 +240,9 @@ async function main() {
   console.log(`Totals => processed=${totals.processed} success=${totals.success} failed=${totals.failed} skipped=${totals.skipped}`);
 }
 
-function toFailureCode(message: string): string {
-  const match = message.match(/\b(\d{3})\b/);
-  if (match) return match[1];
-  return message
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 32) || 'UNKNOWN';
-}
-
 main().catch((error) => {
   const message = error instanceof Error ? error.message : String(error);
   console.error(message);
   process.exit(1);
 });
+
