@@ -8,6 +8,12 @@ function assertNonEmpty(value: unknown, field: string): asserts value is string 
   }
 }
 
+function assertRecord(value: unknown, field: string): asserts value is Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`Config field must be an object: ${field}`);
+  }
+}
+
 export async function loadAccountConfig(accountId: string): Promise<AccountConfig> {
   const filePath = path.join(process.cwd(), 'config', 'accounts', `${accountId}.json`);
   const raw = await readFile(filePath, 'utf8');
@@ -22,6 +28,13 @@ export async function loadAccountConfig(accountId: string): Promise<AccountConfi
 
   if (!parsed.columnMap || !parsed.contactFieldMap || !parsed.customFieldMap) {
     throw new Error('Config must contain columnMap, contactFieldMap, and customFieldMap');
+  }
+
+  if (parsed.optionValueMap) {
+    assertRecord(parsed.optionValueMap, 'optionValueMap');
+    for (const [engineKey, mapValue] of Object.entries(parsed.optionValueMap)) {
+      assertRecord(mapValue, `optionValueMap.${engineKey}`);
+    }
   }
 
   return parsed;

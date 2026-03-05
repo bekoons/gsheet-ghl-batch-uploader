@@ -47,12 +47,15 @@
     "signal.signal_recency_bucket": "6jOKl1nCrhBYEeXU0Gte",
     "hook.hook_angle_type": "9tjD5MbVaAtGAAGecVRy",
     "hook.hook_pillar": "gFAMXKzastQpeDAw3kl3",
-    "hook.hook_score": "De5wgDWbvxdYHdtQkMFW"
+    "hook.hook_score": "De5wgDWbvxdYHdtQkMFW",
+    "identity.outreach_engine": "bJnNzpsWRtUlpPQpXYZx",
+    "classification.company_size_bucket": "LfsEuVt0zaw54vByCrjM",
+    "lifecycle_initialization.outbound_stage": "9HjVTjlbk7BcotQ6LaVQ"
   },
   "optionValueMap": {
     "classification.seniority_level": {
-      "Director": "Director",
-      "Vice President": "Vice President"
+      "vice president": "Vice President",
+      "director": "Director"
     }
   }
 }

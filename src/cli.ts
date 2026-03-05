@@ -138,7 +138,7 @@ async function main() {
     const needsSyntheticEmail = !email && !phone;
     const syntheticEmail = needsSyntheticEmail ? buildSyntheticEmail(prospectKey) : undefined;
 
-    const body = buildGhlUpsertBody({
+    const { body, translationLog } = buildGhlUpsertBody({
       config,
       row: canonical,
       prospectKey,
@@ -146,6 +146,16 @@ async function main() {
     });
 
     console.log(`[trace:${traceId}] Prepared row=${rowIndex} dryRun=${args.dryRun}`);
+
+    if (args.dryRun && translationLog.length > 0) {
+      for (const item of translationLog) {
+        if (item.translated) {
+          console.log(`[trace:${traceId}] Row ${rowIndex} translated ${item.engineKey}: "${item.rawValue}" => "${item.mappedValue}"`);
+        } else if (item.missingMapping) {
+          console.log(`[trace:${traceId}] Row ${rowIndex} missing option map for ${item.engineKey}; using raw value "${item.rawValue}"`);
+        }
+      }
+    }
 
     if (args.dryRun) {
       return {

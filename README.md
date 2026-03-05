@@ -104,6 +104,60 @@ If both email and phone are missing:
 - Access tokens are never printed in logs.
 - Every outbound run is tagged with a trace id.
 
+
+## Export optionValueMap
+
+Before your first upload to a new GHL location, export option labels for option-style custom fields:
+
+```bash
+npm run export:option-map -- --account default
+```
+
+Optional flags:
+
+- `--account <id>` (default: `default`)
+- `--out <path>` (default: `./reports/optionValueMap_<timestamp>.json`)
+- `--options-file <path>` fallback file if API options are incomplete
+
+The exporter reads `config/accounts/<account>.json` for `ghlAccessToken` and `ghlLocationId`, then writes:
+
+- `./reports/optionValueMap_<timestamp>.json`
+- `./reports/fieldOptions_<timestamp>.json`
+
+Fallback `--options-file` format:
+
+```json
+{
+  "<customFieldId>": {
+    "fieldName": "Some Field",
+    "dataType": "SINGLE_OPTIONS",
+    "options": ["Option A", "Option B"]
+  }
+}
+```
+
+## optionValueMap in account config
+
+`optionValueMap` is optional and scoped by engine key. Values should be normalized keys (`trim().toLowerCase()`) mapped to exact GHL labels:
+
+```json
+{
+  "optionValueMap": {
+    "classification.seniority_level": {
+      "vice president": "Vice President",
+      "director": "Director"
+    }
+  }
+}
+```
+
+During upload, if a mapping exists:
+
+- values are normalized with `trim + lowercase`
+- exact label is sent to GHL when mapped
+- missing mapping logs a warning and passes through raw value
+- `--dry-run` prints per-row translation details
+
 ## Report output
 
 Each run writes:

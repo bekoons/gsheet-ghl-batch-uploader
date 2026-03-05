@@ -17,17 +17,27 @@ export interface GhlUpsertBody {
   customFields: Array<{ id: string; value: string }>;
 }
 
+export interface TranslationLogEntry {
+  engineKey: string;
+  customFieldId: string;
+  rawValue: string;
+  mappedValue: string;
+  translated: boolean;
+  missingMapping: boolean;
+}
+
 export function buildGhlUpsertBody(params: {
   config: AccountConfig;
   row: CanonicalRow;
   prospectKey?: string;
   syntheticEmail?: string;
-}): GhlUpsertBody {
+}): { body: GhlUpsertBody; translationLog: TranslationLogEntry[] } {
   const { config, row, prospectKey, syntheticEmail } = params;
   const body: GhlUpsertBody = {
     locationId: config.ghlLocationId,
     customFields: []
   };
+  const translationLog: TranslationLogEntry[] = [];
 
   for (const [contactField, path] of Object.entries(config.contactFieldMap)) {
     const value = contactField === 'email' && syntheticEmail ? syntheticEmail : getByPath(row, path);
@@ -49,13 +59,31 @@ export function buildGhlUpsertBody(params: {
   for (const [engineKey, customFieldId] of Object.entries(config.customFieldMap)) {
     const rawValue = engineKey === 'identity.prospect_key' ? (prospectKey ?? '') : getByPath(row, engineKey);
     const mapped = mapOptionValue(engineKey, rawValue, config.optionValueMap);
-    if (mapped !== '') {
+
+    if (mapped.missingMapping) {
+      console.warn(
+        `[option-map] No optionValueMap match for ${engineKey} (customFieldId=${customFieldId}) value="${rawValue}"; passing through raw value.`
+      );
+    }
+
+    if (mapped.value !== '') {
       body.customFields.push({
         id: customFieldId,
-        value: String(mapped)
+        value: String(mapped.value)
       });
+
+      if (mapped.translated || mapped.missingMapping) {
+        translationLog.push({
+          engineKey,
+          customFieldId,
+          rawValue,
+          mappedValue: String(mapped.value),
+          translated: mapped.translated,
+          missingMapping: mapped.missingMapping
+        });
+      }
     }
   }
 
-  return body;
+  return { body, translationLog };
 }
