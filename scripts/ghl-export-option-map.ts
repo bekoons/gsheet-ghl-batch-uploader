@@ -15,6 +15,12 @@ interface AccountConfigMinimal {
   ghlLocationId: string;
 }
 
+interface FallbackOptionField {
+  fieldName: string;
+  dataType: string;
+  options: string[];
+}
+
 function parseArgs(argv: string[]): ExportArgs {
   const args: ExportArgs = { account: 'default' };
 
@@ -34,17 +40,19 @@ function toTimestamp(): string {
 
 function toOptionLabels(options?: GhlCustomFieldOption[]): string[] {
   if (!options) return [];
-  return options
-    .map((option) => option.label.trim())
-    .filter((label) => label.length > 0);
+
+  const deduped = new Set<string>();
+  for (const option of options) {
+    const label = option.label.trim();
+    if (label) deduped.add(label);
+  }
+
+  return Array.from(deduped);
 }
 
-async function readOptionsFallback(
-  filePath: string
-): Promise<Record<string, { fieldName: string; dataType: string; options: string[] }>> {
+async function readOptionsFallback(filePath: string): Promise<Record<string, FallbackOptionField>> {
   const raw = await readFile(filePath, 'utf8');
-  const parsed = JSON.parse(raw) as Record<string, { fieldName: string; dataType: string; options: string[] }>;
-  return parsed;
+  return JSON.parse(raw) as Record<string, FallbackOptionField>;
 }
 
 async function loadAccount(account: string): Promise<AccountConfigMinimal> {
@@ -72,37 +80,55 @@ async function main() {
     traceId
   });
 
+  const fallbackOptions = args.optionsFile ? await readOptionsFallback(args.optionsFile) : undefined;
   const byFieldId = new Map(customFields.map((field) => [field.id, field]));
   const targetDataTypes = new Set(['SINGLE_OPTIONS', 'MULTI_SELECT', 'CHECKBOX']);
 
-  const fallbackOptions = args.optionsFile ? await readOptionsFallback(args.optionsFile) : undefined;
+  const rawFieldOptions: Record<string, unknown> = {};
+  for (const field of customFields) {
+    if (!targetDataTypes.has(field.dataType)) continue;
+    rawFieldOptions[field.id] = {
+      fieldName: field.name,
+      dataType: field.dataType,
+      options: toOptionLabels(field.options)
+    };
+  }
+
+  if (fallbackOptions) {
+    for (const [fieldId, fallback] of Object.entries(fallbackOptions)) {
+      if (!targetDataTypes.has(fallback.dataType)) continue;
+      const existing = (rawFieldOptions[fieldId] as { options?: string[] } | undefined)?.options || [];
+      if (existing.length > 0) continue;
+
+      rawFieldOptions[fieldId] = {
+        fieldName: fallback.fieldName,
+        dataType: fallback.dataType,
+        options: Array.from(new Set(fallback.options.map((item) => item.trim()).filter(Boolean)))
+      };
+    }
+  }
 
   const optionValueMap: Record<string, Record<string, string>> = {};
-  const rawFieldOptions: Record<string, unknown> = {};
 
   for (const [engineKey, customFieldId] of Object.entries(ENGINE_KEY_CUSTOM_FIELD_IDS)) {
     const field = byFieldId.get(customFieldId);
-    const dataType = field?.dataType ?? fallbackOptions?.[customFieldId]?.dataType ?? 'UNKNOWN';
+    const fallback = fallbackOptions?.[customFieldId];
+    const dataType = field?.dataType ?? fallback?.dataType ?? 'UNKNOWN';
 
     if (!targetDataTypes.has(dataType)) {
       continue;
     }
 
     let optionLabels = toOptionLabels(field?.options);
-    if (optionLabels.length === 0 && fallbackOptions?.[customFieldId]?.options) {
-      optionLabels = fallbackOptions[customFieldId].options;
+    if (optionLabels.length === 0 && fallback?.options) {
+      optionLabels = Array.from(new Set(fallback.options.map((item) => item.trim()).filter(Boolean)));
     }
 
-    rawFieldOptions[engineKey] = {
-      customFieldId,
-      fieldName: field?.name ?? fallbackOptions?.[customFieldId]?.fieldName ?? '',
-      dataType,
-      options: optionLabels
-    };
+    const fieldName = field?.name ?? fallback?.fieldName ?? '';
 
     const map: Record<string, string> = {
       __fieldId: customFieldId,
-      __fieldName: field?.name ?? fallbackOptions?.[customFieldId]?.fieldName ?? '',
+      __fieldName: fieldName,
       __dataType: dataType
     };
 
@@ -119,9 +145,9 @@ async function main() {
 
   console.log(`optionValueMap exported to: ${outPath}`);
   console.log(`field options exported to: ${rawOptionsPath}`);
-  if (args.optionsFile) {
-    console.log('Fallback options file format: { "<customFieldId>": { "fieldName": "...", "dataType": "SINGLE_OPTIONS", "options": ["Label A"] } }');
-  }
+  console.log(
+    'Fallback --options-file format: { "<customFieldId>": { "fieldName": "...", "dataType": "SINGLE_OPTIONS", "options": ["Option A"] } }'
+  );
 }
 
 main().catch((error) => {

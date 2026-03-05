@@ -122,7 +122,7 @@ Optional flags:
 The exporter reads `config/accounts/<account>.json` for `ghlAccessToken` and `ghlLocationId`, then writes:
 
 - `./reports/optionValueMap_<timestamp>.json`
-- `./reports/fieldOptions_<timestamp>.json`
+- `./reports/fieldOptions_<timestamp>.json` (raw option metadata for all `SINGLE_OPTIONS`, `MULTI_SELECT`, and `CHECKBOX` fields, keyed by custom field id)
 
 Fallback `--options-file` format:
 
