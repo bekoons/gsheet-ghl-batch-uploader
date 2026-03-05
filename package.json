@@ -1,0 +1,22 @@
+{
+  "name": "gsheet-ghl-batch-uploader",
+  "version": "1.0.0",
+  "description": "Upload Google Sheets rows to GoHighLevel contacts with batching, retries, and reporting",
+  "main": "dist/cli.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "upload": "npm run build --silent && node dist/cli.js",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "googleapis": "^140.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.12",
+    "typescript": "^5.5.4"
+  }
+}
