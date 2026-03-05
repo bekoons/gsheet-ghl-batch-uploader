@@ -8,46 +8,48 @@
     "range": "A1:ZZ"
   },
   "columnMap": {
-    "linkedin_profile_url": "LinkedIn URL",
-    "first_name": "First Name",
-    "last_name": "Last Name",
-    "full_name": "Full Name",
-    "company_name": "Company",
-    "website": "Website",
-    "email": "Email",
-    "phone": "Phone",
-    "source": "Source",
-    "tags": "Tags",
-    "icp_cluster": "ICP Cluster",
-    "seniority_level": "Seniority Level",
-    "recent_signal_summary": "Recent Signal Summary",
-    "hook_pillar": "Hook Pillar",
-    "outreach_engine": "Outreach Engine"
+    "First Name": "crm_projection.contact.first_name",
+    "Last Name": "crm_projection.contact.last_name",
+    "Company": "crm_projection.contact.company_name",
+    "Website": "crm_projection.contact.website",
+    "Email": "crm_projection.contact.email",
+    "LinkedIn": "identity.linkedin_profile_url",
+    "Message #1": "messages.connection",
+    "Seniority Level": "classification.seniority_level",
+    "relevanceCluster": "classification.icp_cluster",
+    "Primary Signal Type": "signal.recent_signal_type",
+    "activityRecency": "signal.signal_recency_bucket",
+    "Hook Angle Type": "hook.hook_angle_type",
+    "Primary Hook Topic": "hook.hook_pillar",
+    "Hook Score": "hook.hook_score",
+    "Title": "identity.title",
+    "Headline": "identity.headline",
+    "GHL Upload Status": "sheet.ghl_upload_status"
   },
   "contactFieldMap": {
-    "firstName": "first_name",
-    "lastName": "last_name",
-    "companyName": "company_name",
-    "website": "website",
-    "email": "email",
-    "phone": "phone",
-    "source": "source",
-    "tags": "tags",
-    "name": "full_name"
+    "firstName": "crm_projection.contact.first_name",
+    "lastName": "crm_projection.contact.last_name",
+    "companyName": "crm_projection.contact.company_name",
+    "website": "crm_projection.contact.website",
+    "email": "crm_projection.contact.email",
+    "phone": "crm_projection.contact.phone",
+    "source": "crm_projection.contact.source",
+    "tags": "crm_projection.contact.tags"
   },
   "customFieldMap": {
-    "identity.linkedin_profile_url": "REPLACE_CUSTOM_FIELD_ID",
-    "identity.outreach_engine": "REPLACE_CUSTOM_FIELD_ID",
-    "classification.icp_cluster": "REPLACE_CUSTOM_FIELD_ID",
-    "classification.seniority_level": "REPLACE_CUSTOM_FIELD_ID",
-    "signal.recent_signal_summary": "REPLACE_CUSTOM_FIELD_ID",
-    "hook.hook_pillar": "REPLACE_CUSTOM_FIELD_ID",
-    "identity.prospect_key": "REPLACE_CUSTOM_FIELD_ID"
+    "identity.linkedin_profile_url": "pxSBvvDsCRv2JCTsih1S",
+    "identity.title": "IEJLUgry02tNK5Z2ChC5",
+    "identity.headline": "lsut8PuLYKUCHLtLbZiJ",
+    "messages.connection": "ybY6Rr5vRL1hm3trTsbq",
+    "classification.icp_cluster": "oit0PDz6wZeBfg47lyIt",
+    "classification.seniority_level": "c4OLUd9d5pHYsczHek1e",
+    "signal.recent_signal_type": "UGtLahwwtnSDQtajO7pa",
+    "signal.signal_recency_bucket": "6jOKl1nCrhBYEeXU0Gte",
+    "hook.hook_angle_type": "9tjD5MbVaAtGAAGecVRy",
+    "hook.hook_pillar": "gFAMXKzastQpeDAw3kl3",
+    "hook.hook_score": "De5wgDWbvxdYHdtQkMFW"
   },
   "optionValueMap": {
-    "classification.icp_cluster": {
-      "generic": "generic"
-    },
     "classification.seniority_level": {
       "Director": "Director",
       "Vice President": "Vice President"

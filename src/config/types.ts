@@ -1,19 +1,21 @@
 export type CanonicalColumnKey =
-  | 'linkedin_profile_url'
-  | 'first_name'
-  | 'last_name'
-  | 'full_name'
-  | 'company_name'
-  | 'website'
-  | 'email'
-  | 'phone'
-  | 'source'
-  | 'tags'
-  | 'icp_cluster'
-  | 'seniority_level'
-  | 'recent_signal_summary'
-  | 'hook_pillar'
-  | 'outreach_engine';
+  | 'crm_projection.contact.first_name'
+  | 'crm_projection.contact.last_name'
+  | 'crm_projection.contact.company_name'
+  | 'crm_projection.contact.website'
+  | 'crm_projection.contact.email'
+  | 'identity.linkedin_profile_url'
+  | 'messages.connection'
+  | 'classification.seniority_level'
+  | 'classification.icp_cluster'
+  | 'signal.recent_signal_type'
+  | 'signal.signal_recency_bucket'
+  | 'hook.hook_angle_type'
+  | 'hook.hook_pillar'
+  | 'hook.hook_score'
+  | 'identity.title'
+  | 'identity.headline'
+  | 'sheet.ghl_upload_status';
 
 export type ContactFieldName =
   | 'firstName'
@@ -41,7 +43,7 @@ export interface AccountConfig {
   optionValueMap?: Record<string, Record<string, string>>;
 }
 
-export type CanonicalRow = Record<string, string>;
+export type CanonicalRow = Record<string, unknown>;
 
 export interface RowResult {
   rowIndex: number;

@@ -4,9 +4,9 @@ import { RowResult, RunSummary } from './config/types';
 import { upsertContact } from './ghl/ghlClient';
 import { writeReport } from './report/writeReport';
 import { parseRows } from './sheets/parseRows';
-import { readSheetValues } from './sheets/sheetsClient';
+import { readSheetValues, updateSheetValue } from './sheets/sheetsClient';
 import { buildGhlUpsertBody } from './transform/buildGhlUpsertBody';
-import { mapRowToPayload } from './transform/mapRowToPayload';
+import { getByPath } from './transform/objectPath';
 import { buildProspectKey, buildSyntheticEmail, isValidLinkedInProfileUrl } from './transform/prospectKey';
 
 interface CliArgs {
@@ -67,15 +67,43 @@ async function main() {
 
   console.log(`[trace:${traceId}] Reading Google Sheet for account=${config.accountId}`);
   const values = await readSheetValues(config.sheet);
+  const headers = ((values as string[][])[0] || []).map((h) => (h || '').trim());
+  const statusHeader = Object.entries(config.columnMap).find(([, canonical]) => canonical === 'sheet.ghl_upload_status')?.[0];
+  if (!statusHeader) {
+    throw new Error('Missing columnMap entry for sheet.ghl_upload_status');
+  }
+  const statusColumnIndex = headers.findIndex((header) => header === statusHeader);
+  if (statusColumnIndex < 0) {
+    throw new Error(`Missing status column header: ${statusHeader}`);
+  }
   const parsedRows = parseRows(values as string[][], config.columnMap);
 
   const slicedRows = parsedRows.slice(args.offset, args.limit ? args.offset + args.limit : undefined);
 
   const tasks = slicedRows.map(({ rowIndex, canonical }) => async (): Promise<RowResult> => {
-    const mapped = mapRowToPayload(canonical);
-    const linkedin = mapped.linkedin_profile_url;
+    const uploadStatus = getByPath(canonical, 'sheet.ghl_upload_status');
+    if (uploadStatus && uploadStatus.toUpperCase() !== 'PENDING') {
+      return {
+        rowIndex,
+        linkedin_profile_url: getByPath(canonical, 'identity.linkedin_profile_url'),
+        usedSyntheticEmail: false,
+        status: 'skipped',
+        error: `Status is ${uploadStatus}`
+      };
+    }
+
+    const linkedin = getByPath(canonical, 'identity.linkedin_profile_url');
 
     if (!linkedin) {
+      if (!args.dryRun) {
+        await updateSheetValue({
+          spreadsheetId: config.sheet.spreadsheetId,
+          tabName: config.sheet.tabName,
+          rowIndex,
+          columnIndex: statusColumnIndex,
+          value: 'SKIPPED_MISSING_LINKEDIN'
+        });
+      }
       return {
         rowIndex,
         linkedin_profile_url: linkedin,
@@ -86,6 +114,15 @@ async function main() {
     }
 
     if (!isValidLinkedInProfileUrl(linkedin)) {
+      if (!args.dryRun) {
+        await updateSheetValue({
+          spreadsheetId: config.sheet.spreadsheetId,
+          tabName: config.sheet.tabName,
+          rowIndex,
+          columnIndex: statusColumnIndex,
+          value: 'SKIPPED_MISSING_LINKEDIN'
+        });
+      }
       return {
         rowIndex,
         linkedin_profile_url: linkedin,
@@ -96,12 +133,14 @@ async function main() {
     }
 
     const prospectKey = buildProspectKey(linkedin);
-    const needsSyntheticEmail = !mapped.email && !mapped.phone;
+    const email = getByPath(canonical, 'crm_projection.contact.email');
+    const phone = getByPath(canonical, 'crm_projection.contact.phone');
+    const needsSyntheticEmail = !email && !phone;
     const syntheticEmail = needsSyntheticEmail ? buildSyntheticEmail(prospectKey) : undefined;
 
     const body = buildGhlUpsertBody({
       config,
-      row: mapped,
+      row: canonical,
       prospectKey,
       syntheticEmail
     });
@@ -124,6 +163,14 @@ async function main() {
         traceId
       });
 
+      await updateSheetValue({
+        spreadsheetId: config.sheet.spreadsheetId,
+        tabName: config.sheet.tabName,
+        rowIndex,
+        columnIndex: statusColumnIndex,
+        value: 'UPLOADED'
+      });
+
       return {
         rowIndex,
         linkedin_profile_url: linkedin,
@@ -135,6 +182,15 @@ async function main() {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`[trace:${traceId}] Row ${rowIndex} failed: ${message}`);
+      if (!args.dryRun) {
+        await updateSheetValue({
+          spreadsheetId: config.sheet.spreadsheetId,
+          tabName: config.sheet.tabName,
+          rowIndex,
+          columnIndex: statusColumnIndex,
+          value: `FAILED_${toFailureCode(message)}`
+        });
+      }
       if (args.stopOnError) throw error;
       return {
         rowIndex,
@@ -169,6 +225,16 @@ async function main() {
   console.log(`[trace:${traceId}] Report JSON: ${report.jsonPath}`);
   console.log(`[trace:${traceId}] Report CSV: ${report.csvPath}`);
   console.log(`Totals => processed=${totals.processed} success=${totals.success} failed=${totals.failed} skipped=${totals.skipped}`);
+}
+
+function toFailureCode(message: string): string {
+  const match = message.match(/\b(\d{3})\b/);
+  if (match) return match[1];
+  return message
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 32) || 'UNKNOWN';
 }
 
 main().catch((error) => {

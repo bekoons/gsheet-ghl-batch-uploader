@@ -20,7 +20,7 @@ async function getAuthClient() {
   const keyFile = process.env.GOOGLE_APPLICATION_CREDENTIALS || './secrets/service-account.json';
   return new google.auth.GoogleAuth({
     keyFile,
-    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
+    scopes: ['https://www.googleapis.com/auth/spreadsheets']
   });
 }
 
@@ -37,4 +37,35 @@ export async function readSheetValues(params: {
     range: a1Range
   });
   return response.data.values ?? [];
+}
+
+export async function updateSheetValue(params: {
+  spreadsheetId: string;
+  tabName: string;
+  rowIndex: number;
+  columnIndex: number;
+  value: string;
+}) {
+  const auth = await getAuthClient();
+  const sheets = google.sheets({ version: 'v4', auth });
+  const columnA1 = toColumnA1(params.columnIndex + 1);
+  const range = `${params.tabName}!${columnA1}${params.rowIndex}`;
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: params.spreadsheetId,
+    range,
+    valueInputOption: 'RAW',
+    requestBody: { values: [[params.value]] }
+  });
+}
+
+function toColumnA1(columnNumber: number): string {
+  let n = columnNumber;
+  let result = '';
+  while (n > 0) {
+    const remainder = (n - 1) % 26;
+    result = String.fromCharCode(65 + remainder) + result;
+    n = Math.floor((n - 1) / 26);
+  }
+  return result;
 }

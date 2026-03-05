@@ -1,4 +1,5 @@
 import { CanonicalRow } from '../config/types';
+import { setByPath } from '../transform/objectPath';
 
 export function parseRows(values: string[][], columnMap: Record<string, string>): Array<{ rowIndex: number; canonical: CanonicalRow }> {
   if (values.length === 0) {
@@ -10,9 +11,10 @@ export function parseRows(values: string[][], columnMap: Record<string, string>)
 
   return values.slice(1).map((row, idx) => {
     const canonical: CanonicalRow = {};
-    for (const [canonicalKey, headerName] of Object.entries(columnMap)) {
+    for (const [headerName, canonicalKey] of Object.entries(columnMap)) {
       const columnIndex = headerToIndex.get(headerName);
-      canonical[canonicalKey] = columnIndex === undefined ? '' : String(row[columnIndex] ?? '').trim();
+      const value = columnIndex === undefined ? '' : String(row[columnIndex] ?? '').trim();
+      setByPath(canonical, canonicalKey, value);
     }
     return { rowIndex: idx + 2, canonical };
   });
